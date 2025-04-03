@@ -2,7 +2,7 @@ local HttpService = game:GetService("HttpService")
 local replicatedStorage = game:GetService("ReplicatedStorage")
 
 -- Configura tu URL base de Firebase (reemplaza TU_PROYECTO por el identificador de tu proyecto)
-local firebaseBase = "https://dataruns-1a46d-default-rtdb.firebaseio.com/"
+local firebaseBase = "https://dataruns-1a46d-default-rtdb.firebaseio.com"
 
 -- Endpoint para los reports de bosses (se almacenarán en la colección "bossreports")
 local firebaseBossEndpoint = firebaseBase .. "/bossreports.json"
