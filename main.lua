@@ -1,23 +1,19 @@
 local HttpService = game:GetService("HttpService")
 local replicatedStorage = game:GetService("ReplicatedStorage")
 
--- Configura tu URL base de Firebase (reemplaza TU_PROYECTO por el identificador de tu proyecto)
+-- Configura tu URL base de Firebase
 local firebaseBase = "https://dataruns-1a46d-default-rtdb.firebaseio.com"
-
--- Endpoint para los reports de bosses (se almacenarán en la colección "bossreports")
-local firebaseBossEndpoint = firebaseBase .. "/bossreports.json"
 
 -- Configura tu webhook de Discord
 local webhookUrl = "https://discord.com/api/webhooks/1351710923936628889/ndpfKfLQfsM1AyJCMbS5tkDmPQ8h9kN2902x3KppzrGCXPXL_dr3oOydL0jjzRit4u95"
 
--- Lista de bosses a detectar (solo se reportan estos)
+-- Lista de bosses a detectar
 local targetBosses = {
     ["Elder Treant"] = true,
     ["Mother Spider"] = true,
     ["Dire Bear"] = true
 }
 
--- Obtiene información del juego y del servidor actual
 local gameId = game.PlaceId
 local serverId = game.JobId
 
@@ -35,7 +31,7 @@ local function sendWebhookMessage(message)
     end
 end
 
--- Función para obtener la información del servidor desde ReplicatedStorage.GlobalSettings
+-- Función para obtener la información del servidor
 local function getServerInfo()
     local info = {
         serverAge = "Desconocido",
@@ -54,7 +50,7 @@ local function getServerInfo()
     return info
 end
 
--- Función para registrar en Firebase la detección de un boss en el servidor actual
+-- Función para registrar en Firebase la detección de un boss
 local function logBossDetection(bossName)
     local serverInfo = getServerInfo()
     local report = {
@@ -66,26 +62,29 @@ local function logBossDetection(bossName)
         serverAge = serverInfo.serverAge,
         timestamp = os.time()
     }
-    -- Generamos una clave única combinando el serverId, el boss y la hora
+    
     local key = serverId .. "_" .. bossName .. "_" .. tostring(os.time())
     local url = firebaseBase .. "/bossreports/" .. key .. ".json"
     local jsonData = HttpService:JSONEncode(report)
-    local success, result = pcall(function()
-        return HttpService:RequestAsync({
+
+    local requestFunction = (syn and syn.request) or (http and http.request) or request
+    if requestFunction then
+        local response = requestFunction({
             Url = url,
             Method = "PUT",
             Headers = { ["Content-Type"] = "application/json" },
             Body = jsonData
         })
-    end)
-    if success then
-        print("Reportado boss: " .. bossName)
-    else
-        warn("Error reportando boss: " .. bossName)
+
+        if response and response.StatusCode == 200 then
+            print("✅ Boss reportado correctamente: " .. bossName)
+        else
+            warn("❌ Error reportando boss: " .. bossName)
+        end
     end
 end
 
--- Función para detectar bosses en la carpeta "Alive" del servidor actual
+-- Función para detectar bosses en la carpeta "Alive"
 local function detectBossesLocal()
     local found = {}
     local aliveFolder = game.Workspace:FindFirstChild("Alive")
@@ -104,7 +103,7 @@ local function detectBossesLocal()
     return found
 end
 
--- Función para que el servidor actual registre localmente sus bosses en Firebase
+-- Función para registrar bosses locales en Firebase
 local function logLocalBosses()
     local bosses = detectBossesLocal()
     for _, boss in ipairs(bosses) do
@@ -112,44 +111,44 @@ local function logLocalBosses()
     end
 end
 
--- Función para obtener de Firebase los reports globales de bosses (de todos los servidores)
+-- Función para obtener reports globales desde Firebase
 local function getGlobalBossReports()
-    local success, response = pcall(function()
-        return HttpService:GetAsync(firebaseBossEndpoint)
-    end)
-    if success then
-        local data = HttpService:JSONDecode(response)
-        return data
-    else
-        warn("Error obteniendo reports globales")
-        return {}
+    local url = firebaseBase .. "/bossreports.json"
+    local requestFunction = (syn and syn.request) or (http and http.request) or request
+
+    if requestFunction then
+        local response = requestFunction({
+            Url = url,
+            Method = "GET",
+            Headers = { ["Content-Type"] = "application/json" }
+        })
+
+        if response and response.StatusCode == 200 then
+            local data = HttpService:JSONDecode(response.Body)
+            return data or {}
+        else
+            warn("❌ Error obteniendo reports globales")
+            return {}
+        end
     end
 end
 
 -- Función para compilar los reports globales y enviarlos a Discord
 local function reportGlobalBosses()
     local reports = getGlobalBossReports()
-    local message = "**Global Boss Report:**\n"
-    if reports then
+    local message = "**🌍 Global Boss Report:**\n"
+
+    if next(reports) then
         for key, report in pairs(reports) do
             message = message .. "⚔️ **" .. report.boss .. "** en servidor **" .. report.serverName .. "** (" .. report.serverRegion .. "), Edad: " .. report.serverAge .. " - [JobID: " .. report.serverId .. "]\n"
         end
     else
-        message = message .. "No se encontraron reports."
+        message = message .. "No se encontraron reports globales."
     end
+
     sendWebhookMessage(message)
 end
 
---[[
-  ► EJECUCIÓN:
-  1. Se registran (si hay bosses) los bosses del servidor actual en Firebase.
-  2. Se consulta Firebase para obtener los reports de todos los servidores y se envía el reporte global a Discord.
-  
-  Nota: Si otros servidores ya han ejecutado scripts similares, sus reports estarán disponibles en Firebase.
---]]
-
--- Registra los bosses del servidor actual en Firebase (si se detectan)
+-- 🏁 Ejecutar funciones principales
 logLocalBosses()
-
--- Envía el reporte global (agregando los reports de todos los servidores)
 reportGlobalBosses()
